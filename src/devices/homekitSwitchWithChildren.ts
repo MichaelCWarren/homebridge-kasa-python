@@ -313,9 +313,9 @@ export default class HomeKitDeviceSwitchWithChildren extends HomeKitDevice {
           this.kasaDevice.sys_info.children?.forEach((child: ChildDevice) => {
             const childNumber = parseInt(child.id.slice(-1), 10);
             let service;
-            if (child.brightness) {
+            if ('brightness' in child) {
               service = this.homebridgeAccessory.getServiceById(this.platform.Service.Lightbulb, `child-${childNumber + 1}`);
-            } else if (child.fan_speed_level) {
+            } else if ('fan_speed_level' in child) {
               service = this.homebridgeAccessory.getServiceById(this.platform.Service.Fanv2, `child-${childNumber + 1}`);
             }
             if (service && service.UUID === this.platform.Service.Lightbulb.UUID && this.previousKasaDevice) {
@@ -325,12 +325,12 @@ export default class HomeKitDeviceSwitchWithChildren extends HomeKitDevice {
                   this.updateValue(service, service.getCharacteristic(this.platform.Characteristic.On), child.alias, child.state);
                   this.log.debug(`Updated state for child device: ${child.alias} to ${child.state}`);
                 }
-                if (child.brightness && previousChild.brightness !== child.brightness) {
+                if ('brightness' in child && previousChild.brightness !== child.brightness) {
                   this.updateValue(
                     service,
                     service.getCharacteristic(this.platform.Characteristic.Brightness),
                     child.alias,
-                    child.brightness,
+                    (child.brightness as number) as CharacteristicValue,
                   );
                   this.log.debug(`Updated brightness for child device: ${child.alias} to ${child.brightness}`);
                 }
@@ -344,12 +344,12 @@ export default class HomeKitDeviceSwitchWithChildren extends HomeKitDevice {
                   );
                   this.log.debug(`Updated state for child device: ${child.alias} to ${child.state}`);
                 }
-                if (child.fan_speed_level && previousChild.fan_speed_level !== child.fan_speed_level) {
+                if ('fan_speed_level' in child && previousChild.fan_speed_level !== child.fan_speed_level) {
                   this.updateValue(
                     service,
                     service.getCharacteristic(this.platform.Characteristic.RotationSpeed),
                     child.alias,
-                    this.mapRotationSpeedToValue(child.fan_speed_level as number | undefined) as CharacteristicValue,
+                    this.mapRotationSpeedToValue(child.fan_speed_level as number) as CharacteristicValue,
                   );
                   this.log.debug(`Updated fan speed for child device: ${child.alias} to ${child.fan_speed_level}`);
                 }

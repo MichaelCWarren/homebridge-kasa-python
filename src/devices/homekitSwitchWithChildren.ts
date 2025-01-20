@@ -147,11 +147,26 @@ export default class HomeKitDeviceSwitchWithChildren extends HomeKitDevice {
     } else if (characteristicType === this.platform.Characteristic.Brightness) {
       return child.brightness ?? 0;
     } else if (characteristicType === this.platform.Characteristic.RotationSpeed) {
-      return child.fan_speed_level ?? 0;
+      return this.mapRotationSpeedToValue(child.fan_speed_level) ?? 0;
     } else if (characteristicType === this.platform.Characteristic.On) {
       return child.state ?? false;
     }
     return false;
+  }
+
+  private mapRotationSpeedToValue(value: number | undefined): number | undefined {
+    if (value === 0) {
+      return 0;
+    } else if (value === 1) {
+      return 25;
+    } else if (value === 2) {
+      return 50;
+    } else if (value === 3) {
+      return 75;
+    } else if (value === 4) {
+      return 100;
+    }
+    return undefined;
   }
 
   private getDefaultValue(characteristicType: WithUUID<new () => Characteristic>): CharacteristicValue {
@@ -211,6 +226,17 @@ export default class HomeKitDeviceSwitchWithChildren extends HomeKitDevice {
             if (characteristicName === 'Active') {
               controlValue = value === 1 ? true : false;
             } else if (characteristicName === 'RotationSpeed') {
+              if (value === 0) {
+                value = 0;
+              } else if (value as number >= 1 && value as number <= 25) {
+                value = 25;
+              } else if (value as number >= 26 && value as number <= 50) {
+                value = 50;
+              } else if (value as number >= 51 && value as number <= 75) {
+                value = 75;
+              } else if (value as number >= 76 && value as number <= 100) {
+                value = 100;
+              }
               controlValue = this.mapValuetoRotationSpeed(value as number);
             } else {
               controlValue = value;
@@ -323,7 +349,7 @@ export default class HomeKitDeviceSwitchWithChildren extends HomeKitDevice {
                     service,
                     service.getCharacteristic(this.platform.Characteristic.RotationSpeed),
                     child.alias,
-                    child.fan_speed_level,
+                    this.mapRotationSpeedToValue(child.fan_speed_level as number | undefined) as CharacteristicValue,
                   );
                   this.log.debug(`Updated fan speed for child device: ${child.alias} to ${child.fan_speed_level}`);
                 }

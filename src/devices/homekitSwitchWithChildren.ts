@@ -68,7 +68,7 @@ export default class HomeKitDeviceSwitchWithChildren extends HomeKitDevice {
 
   private checkService(child: ChildDevice, index: number) {
     const { Lightbulb, Fanv2 } = this.platform.Service;
-    const serviceType = child.fan_speed_level ? Fanv2 : Lightbulb;
+    const serviceType = 'fan_speed_level' in child ? Fanv2 : Lightbulb;
     const service: Service =
       this.homebridgeAccessory.getServiceById(serviceType, `child-${index + 1}`) ??
       this.addService(serviceType, child.alias, `child-${index + 1}`);

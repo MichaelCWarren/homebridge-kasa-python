@@ -339,10 +339,10 @@ async def perform_device_action(device: Device, feature: str, action: str, value
         await handle_brightness(target, action, value)
     elif feature == "color_temp" and light.has_feature("color_temp"):
         await handle_color_temp(target, action, value)
+    elif feature == "fan_speed_level" and fan:
+        await handle_fan_speed_level(target, action, value)
     elif feature in ["hue", "saturation"] and light.has_feature("hsv"):
         await handle_hsv(target, action, feature, value)
-    elif feature == "fan_speed_level" and fan:
-        await getattr(fan, action)(value)
     else:
         raise ValueError("Invalid feature or action")
     return {"status": "success"}
@@ -363,6 +363,16 @@ async def handle_color_temp(target: Device, action: str, value: int):
     min_temp, max_temp = light.valid_temperature_range
     value = max(min(value, max_temp), min_temp)
     await getattr(light, action)(value)
+
+async def handle_fan_speed_level(target: Device, action: str, value: int):
+    print(f"Handling fan speed level: action={action}, value={value}")
+    fan = target.modules.get(Module.Fan)
+    if value == 0:
+        await target.turn_off()
+    elif 0 < value <= 100:
+        await getattr(fan, action)(value)
+    else:
+        await target.turn_on()
 
 async def handle_hsv(target: Device, action: str, feature: str, value: Dict[str, int]):
     print(f"Handling HSV: action={action}, feature={feature}, value={value}")

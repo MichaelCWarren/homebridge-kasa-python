@@ -143,18 +143,18 @@ export default class HomeKitDeviceSwitchWithChildren extends HomeKitDevice {
 
   private getInitialValue(characteristicType: WithUUID<new () => Characteristic>, child: ChildDevice): CharacteristicValue {
     if (characteristicType === this.platform.Characteristic.Active) {
-      return child.state ? 1 : 0;
+      return child.state ? this.platform.Characteristic.Active.ACTIVE : this.platform.Characteristic.Active.INACTIVE;
     } else if (characteristicType === this.platform.Characteristic.Brightness) {
       return child.brightness ?? 0;
     } else if (characteristicType === this.platform.Characteristic.RotationSpeed) {
-      return this.mapRotationSpeedToValue(child.fan_speed_level) ?? 0;
+      return this.mapRotationSpeedToValue(child.fan_speed_level!) ?? 0;
     } else if (characteristicType === this.platform.Characteristic.On) {
       return child.state ?? false;
     }
     return false;
   }
 
-  private mapRotationSpeedToValue(value: number | undefined): number | undefined {
+  private mapRotationSpeedToValue(value: number): number {
     if (value === 0) {
       return 0;
     } else if (value === 1) {
@@ -166,18 +166,19 @@ export default class HomeKitDeviceSwitchWithChildren extends HomeKitDevice {
     } else if (value === 4) {
       return 100;
     }
-    return undefined;
+    return 0;
   }
 
   private getDefaultValue(characteristicType: WithUUID<new () => Characteristic>): CharacteristicValue {
     const zeroValueCharacteristics: WithUUID<new () => Characteristic>[] = [
-      this.platform.Characteristic.Active,
       this.platform.Characteristic.Brightness,
       this.platform.Characteristic.RotationSpeed,
     ];
 
     if (zeroValueCharacteristics.includes(characteristicType)) {
       return 0;
+    } else if (characteristicType === this.platform.Characteristic.Active) {
+      return this.platform.Characteristic.Active.INACTIVE;
     }
     return false;
   }
@@ -222,24 +223,26 @@ export default class HomeKitDeviceSwitchWithChildren extends HomeKitDevice {
             }
 
             const childNumber = parseInt(child.id.slice(-1), 10);
-            let controlValue;
+            let controlValue: CharacteristicValue = value;
             if (characteristicName === 'Active') {
               controlValue = value === 1 ? true : false;
             } else if (characteristicName === 'RotationSpeed') {
               if (value === 0) {
                 value = 0;
+                controlValue = 0;
               } else if (value as number >= 1 && value as number <= 25) {
                 value = 25;
+                controlValue = 1;
               } else if (value as number >= 26 && value as number <= 50) {
                 value = 50;
+                controlValue = 2;
               } else if (value as number >= 51 && value as number <= 75) {
                 value = 75;
+                controlValue = 3;
               } else if (value as number >= 76 && value as number <= 100) {
                 value = 100;
+                controlValue = 4;
               }
-              controlValue = this.mapValuetoRotationSpeed(value as number);
-            } else {
-              controlValue = value;
             }
             await this.deviceManager.controlDevice(this.kasaDevice.sys_info.host, characteristicKey, controlValue, childNumber);
             (child[characteristicKey as keyof ChildDevice] as unknown as CharacteristicValue) = controlValue;
@@ -267,21 +270,6 @@ export default class HomeKitDeviceSwitchWithChildren extends HomeKitDevice {
       };
       await task();
     });
-  }
-
-  private mapValuetoRotationSpeed(value: number): number {
-    if (value === 0) {
-      return 0;
-    } else if (value >= 1 && value <= 25) {
-      return 1;
-    } else if (value >= 26 && value <= 50) {
-      return 2;
-    } else if (value >= 51 && value <= 75) {
-      return 3;
-    } else if (value >= 76 && value <= 100) {
-      return 4;
-    }
-    return 0;
   }
 
   protected async updateState() {
@@ -340,18 +328,22 @@ export default class HomeKitDeviceSwitchWithChildren extends HomeKitDevice {
               if (previousChild) {
                 if (previousChild.state !== child.state) {
                   this.updateValue(
-                    service, service.getCharacteristic(this.platform.Characteristic.Active), child.alias, child.state ? 1 : 0,
+                    service,
+                    service.getCharacteristic(this.platform.Characteristic.Active),
+                    child.alias,
+                    child.state ? this.platform.Characteristic.Active.ACTIVE : this.platform.Characteristic.Active.INACTIVE,
                   );
                   this.log.debug(`Updated state for child device: ${child.alias} to ${child.state}`);
                 }
                 if ('fan_speed_level' in child && previousChild.fan_speed_level !== child.fan_speed_level) {
+                  const updateValue = this.mapRotationSpeedToValue(child.fan_speed_level as number);
                   this.updateValue(
                     service,
                     service.getCharacteristic(this.platform.Characteristic.RotationSpeed),
                     child.alias,
-                    this.mapRotationSpeedToValue(child.fan_speed_level as number) as CharacteristicValue,
+                    updateValue,
                   );
-                  this.log.debug(`Updated fan speed for child device: ${child.alias} to ${child.fan_speed_level}`);
+                  this.log.debug(`Updated fan speed for child device: ${child.alias} to ${updateValue}`);
                 }
               }
             } else {

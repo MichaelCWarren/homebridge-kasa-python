@@ -262,6 +262,42 @@ export default class HomeKitDevicePowerStrip extends HomeKitDevice {
     });
   }
 
+  public updateAfterPeriodicDiscovery() {
+    this.kasaDevice.sys_info.children?.forEach((child: ChildDevice, index: number) => {
+      const { Outlet } = this.platform.Service;
+      const service: Service | undefined =
+        this.homebridgeAccessory.getServiceById(Outlet, `outlet-${index + 1}`);
+      if (service) {
+        const characteristics: { type: WithUUID<new () => Characteristic>; name: string | undefined }[] = [
+          {
+            type: this.platform.Characteristic.On,
+            name: this.platform.getCharacteristicName(this.platform.Characteristic.On),
+          },
+        ];
+        characteristics.forEach(({ type, name }) => {
+          const characteristic: Characteristic = service.getCharacteristic(type);
+          if (characteristic) {
+            const characteristicMap: { [key: string]: string } = {
+              On: 'state',
+            };
+            const characteristicKey = characteristicMap[name ?? ''];
+            if (!characteristicKey) {
+              throw new Error(`Characteristic key not found for ${name}`);
+            }
+            if (child[characteristicKey as keyof ChildDevice] !== undefined) {
+              const value = child[characteristicKey as keyof ChildDevice] as unknown as CharacteristicValue;
+              this.log.debug(`Setting value for characteristic ${name} to ${value}`);
+              this.updateValue(service, characteristic, child.alias, value);
+              this.updateValue(service, service.getCharacteristic(this.platform.Characteristic.OutletInUse), child.alias, value);
+            }
+          }
+        });
+      } else {
+        this.log.debug(`Service not found for child device: ${child.alias}`);
+      }
+    });
+  }
+
   public startPolling() {
     if (this.kasaDevice.offline || this.platform.isShuttingDown) {
       this.stopPolling();

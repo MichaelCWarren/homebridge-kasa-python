@@ -112,6 +112,8 @@ export default abstract class HomeKitDevice {
 
   abstract identify(): void;
 
+  abstract updateAfterPeriodicDiscovery(): void;
+
   abstract startPolling(): void;
 
   addService(serviceConstructor: WithUUID<typeof this.platform.Service>, name: string, subType?: string): Service {

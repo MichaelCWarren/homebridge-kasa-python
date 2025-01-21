@@ -311,6 +311,69 @@ export default class HomeKitDeviceLightBulb extends HomeKitDevice {
     });
   }
 
+  public updateAfterPeriodicDiscovery() {
+    const service = this.homebridgeAccessory.getService(this.platform.Service.Lightbulb);
+    if (service) {
+      const characteristics: { type: WithUUID<new () => Characteristic>; name: string | undefined }[] = [
+        {
+          type: this.platform.Characteristic.On,
+          name: this.platform.getCharacteristicName(this.platform.Characteristic.On),
+        },
+      ];
+      if (this.hasBrightness) {
+        characteristics.push(
+          {
+            type: this.platform.Characteristic.Brightness,
+            name: this.platform.getCharacteristicName(this.platform.Characteristic.Brightness),
+          },
+        );
+      }
+      if (this.hasColorTemp) {
+        characteristics.push(
+          {
+            type: this.platform.Characteristic.ColorTemperature,
+            name: this.platform.getCharacteristicName(this.platform.Characteristic.ColorTemperature),
+          },
+        );
+      }
+      if (this.hasHSV) {
+        characteristics.push(
+          {
+            type: this.platform.Characteristic.Hue,
+            name: this.platform.getCharacteristicName(this.platform.Characteristic.Hue),
+          },
+          {
+            type: this.platform.Characteristic.Saturation,
+            name: this.platform.getCharacteristicName(this.platform.Characteristic.Saturation),
+          },
+        );
+      }
+      characteristics.forEach(({ type, name }) => {
+        const characteristic: Characteristic = service.getCharacteristic(type);
+        if (characteristic) {
+          const characteristicMap: { [key: string]: string } = {
+            On: 'state',
+            Brightness: 'brightness',
+            ColorTemperature: 'color_temp',
+            Hue: 'hue',
+            Saturation: 'saturation',
+          };
+          const characteristicKey = characteristicMap[name ?? ''];
+          if (!characteristicKey) {
+            throw new Error(`Characteristic key not found for ${name}`);
+          }
+          if (this.kasaDevice.sys_info[characteristicKey as keyof SysInfo] !== undefined) {
+            const value = this.kasaDevice.sys_info[characteristicKey as keyof SysInfo] as unknown as CharacteristicValue;
+            this.log.debug(`Setting value for characteristic ${name} to ${value}`);
+            this.updateValue(service, characteristic, this.name, value);
+          }
+        }
+      });
+    } else {
+      this.log.debug(`Service not found for device: ${this.name}`);
+    }
+  }
+
   public startPolling() {
     if (this.kasaDevice.offline || this.platform.isShuttingDown) {
       this.stopPolling();

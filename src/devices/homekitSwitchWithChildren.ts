@@ -78,19 +78,19 @@ export default class HomeKitDeviceSwitchWithChildren extends HomeKitDevice {
 
   private checkCharacteristics(service: Service, child: ChildDevice) {
     const characteristics = [
-      child.fan_speed_level && {
+      'fan_speed_level' in child && {
         type: this.platform.Characteristic.RotationSpeed,
         name: this.platform.getCharacteristicName(this.platform.Characteristic.RotationSpeed),
       },
-      child.fan_speed_level && {
+      'fan_speed_level' in child && {
         type: this.platform.Characteristic.Active,
         name: this.platform.getCharacteristicName(this.platform.Characteristic.Active),
       },
-      child.brightness && {
+      'brightness' in child && {
         type: this.platform.Characteristic.On,
         name: this.platform.getCharacteristicName(this.platform.Characteristic.Brightness),
       },
-      child.brightness && {
+      'brightness' in child && {
         type: this.platform.Characteristic.Brightness,
         name: this.platform.getCharacteristicName(this.platform.Characteristic.Brightness),
       },

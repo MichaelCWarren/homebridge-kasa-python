@@ -131,12 +131,16 @@ export default class HomeKitDeviceSwitchWithChildren extends HomeKitDevice {
       return this.getDefaultValue(characteristicType);
     }
 
+    if (this.isUpdating || this.platform.periodicDeviceDiscovering) {
+      await Promise.race([
+        new Promise<void>((resolve) => this.updateEmitter.once('updateComplete', resolve)),
+        new Promise<void>((resolve) => this.updateEmitter.once('periodicDeviceDiscoveryComplete', resolve)),
+      ]);
+    }
+
     try {
-      let characteristicValue = service.getCharacteristic(characteristicType).value;
-      if (!characteristicValue) {
-        characteristicValue = this.getInitialValue(characteristicType, child);
-        service.getCharacteristic(characteristicType).updateValue(characteristicValue);
-      }
+      const characteristicValue = this.getCharacteristicValue(characteristicType, child);
+      service.getCharacteristic(characteristicType).updateValue(characteristicValue);
       this.log.debug(`Got value for characteristic ${characteristicName}: ${characteristicValue}`);
       return characteristicValue ?? this.getDefaultValue(characteristicType);
     } catch (error) {
@@ -147,7 +151,21 @@ export default class HomeKitDeviceSwitchWithChildren extends HomeKitDevice {
     }
   }
 
-  private getInitialValue(characteristicType: WithUUID<new () => Characteristic>, child: ChildDevice): CharacteristicValue {
+  private getDefaultValue(characteristicType: WithUUID<new () => Characteristic>): CharacteristicValue {
+    const zeroValueCharacteristics: WithUUID<new () => Characteristic>[] = [
+      this.platform.Characteristic.Brightness,
+      this.platform.Characteristic.RotationSpeed,
+    ];
+
+    if (zeroValueCharacteristics.includes(characteristicType)) {
+      return 0;
+    } else if (characteristicType === this.platform.Characteristic.Active) {
+      return this.platform.Characteristic.Active.INACTIVE;
+    }
+    return false;
+  }
+
+  private getCharacteristicValue(characteristicType: WithUUID<new () => Characteristic>, child: ChildDevice): CharacteristicValue {
     if (characteristicType === this.platform.Characteristic.Active) {
       return child.state ? this.platform.Characteristic.Active.ACTIVE : this.platform.Characteristic.Active.INACTIVE;
     } else if (characteristicType === this.platform.Characteristic.Brightness) {
@@ -173,20 +191,6 @@ export default class HomeKitDeviceSwitchWithChildren extends HomeKitDevice {
       return 100;
     }
     return 0;
-  }
-
-  private getDefaultValue(characteristicType: WithUUID<new () => Characteristic>): CharacteristicValue {
-    const zeroValueCharacteristics: WithUUID<new () => Characteristic>[] = [
-      this.platform.Characteristic.Brightness,
-      this.platform.Characteristic.RotationSpeed,
-    ];
-
-    if (zeroValueCharacteristics.includes(characteristicType)) {
-      return 0;
-    } else if (characteristicType === this.platform.Characteristic.Active) {
-      return this.platform.Characteristic.Active.INACTIVE;
-    }
-    return false;
   }
 
   private async handleOnSet(

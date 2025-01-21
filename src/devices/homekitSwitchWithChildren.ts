@@ -68,33 +68,40 @@ export default class HomeKitDeviceSwitchWithChildren extends HomeKitDevice {
 
   private checkService(child: ChildDevice, index: number) {
     const { Lightbulb, Fanv2 } = this.platform.Service;
-    const serviceType = 'fan_speed_level' in child ? Fanv2 : Lightbulb;
+    const serviceType = child.fan_speed_level !== undefined ? Fanv2 : Lightbulb;
     const service: Service =
       this.homebridgeAccessory.getServiceById(serviceType, `child-${index + 1}`) ??
       this.addService(serviceType, child.alias, `child-${index + 1}`);
     this.checkCharacteristics(service, child);
-    return service;
   }
 
   private checkCharacteristics(service: Service, child: ChildDevice) {
-    const characteristics = [
-      'fan_speed_level' in child && {
-        type: this.platform.Characteristic.RotationSpeed,
-        name: this.platform.getCharacteristicName(this.platform.Characteristic.RotationSpeed),
-      },
-      'fan_speed_level' in child && {
-        type: this.platform.Characteristic.Active,
-        name: this.platform.getCharacteristicName(this.platform.Characteristic.Active),
-      },
-      'brightness' in child && {
-        type: this.platform.Characteristic.On,
-        name: this.platform.getCharacteristicName(this.platform.Characteristic.Brightness),
-      },
-      'brightness' in child && {
-        type: this.platform.Characteristic.Brightness,
-        name: this.platform.getCharacteristicName(this.platform.Characteristic.Brightness),
-      },
-    ].filter(Boolean) as { type: WithUUID<new () => Characteristic>; name: string | undefined }[];
+    const characteristics: { type: WithUUID<new () => Characteristic>; name: string | undefined }[] = [];
+
+    if (child.fan_speed_level !== undefined) {
+      characteristics.push(
+        {
+          type: this.platform.Characteristic.RotationSpeed,
+          name: this.platform.getCharacteristicName(this.platform.Characteristic.RotationSpeed),
+        },
+        {
+          type: this.platform.Characteristic.Active,
+          name: this.platform.getCharacteristicName(this.platform.Characteristic.Active),
+        },
+      );
+    }
+    if (child.brightness !== undefined) {
+      characteristics.push(
+        {
+          type: this.platform.Characteristic.On,
+          name: this.platform.getCharacteristicName(this.platform.Characteristic.On),
+        },
+        {
+          type: this.platform.Characteristic.Brightness,
+          name: this.platform.getCharacteristicName(this.platform.Characteristic.Brightness),
+        },
+      );
+    }
 
     characteristics.forEach(({ type, name }) => {
       this.getOrAddCharacteristic(service, type, name, child);
@@ -111,7 +118,6 @@ export default class HomeKitDeviceSwitchWithChildren extends HomeKitDevice {
       service.addCharacteristic(characteristicType);
     characteristic.onGet(this.handleOnGet.bind(this, service, characteristicType, characteristicName, child));
     characteristic.onSet(this.handleOnSet.bind(this, service, characteristicType, characteristicName, child));
-    return characteristic;
   }
 
   private async handleOnGet(
@@ -301,9 +307,9 @@ export default class HomeKitDeviceSwitchWithChildren extends HomeKitDevice {
           this.kasaDevice.sys_info.children?.forEach((child: ChildDevice) => {
             const childNumber = parseInt(child.id.slice(-1), 10);
             let service;
-            if ('brightness' in child) {
+            if (child.brightness !== undefined) {
               service = this.homebridgeAccessory.getServiceById(this.platform.Service.Lightbulb, `child-${childNumber + 1}`);
-            } else if ('fan_speed_level' in child) {
+            } else if (child.fan_speed_level !== undefined) {
               service = this.homebridgeAccessory.getServiceById(this.platform.Service.Fanv2, `child-${childNumber + 1}`);
             }
             if (service && service.UUID === this.platform.Service.Lightbulb.UUID && this.previousKasaDevice) {
@@ -313,7 +319,7 @@ export default class HomeKitDeviceSwitchWithChildren extends HomeKitDevice {
                   this.updateValue(service, service.getCharacteristic(this.platform.Characteristic.On), child.alias, child.state);
                   this.log.debug(`Updated state for child device: ${child.alias} to ${child.state}`);
                 }
-                if ('brightness' in child && previousChild.brightness !== child.brightness) {
+                if (child.brightness !== undefined && previousChild.brightness !== child.brightness) {
                   this.updateValue(
                     service,
                     service.getCharacteristic(this.platform.Characteristic.Brightness),
@@ -335,7 +341,7 @@ export default class HomeKitDeviceSwitchWithChildren extends HomeKitDevice {
                   );
                   this.log.debug(`Updated state for child device: ${child.alias} to ${child.state}`);
                 }
-                if ('fan_speed_level' in child && previousChild.fan_speed_level !== child.fan_speed_level) {
+                if (child.fan_speed_level !== undefined && previousChild.fan_speed_level !== child.fan_speed_level) {
                   const updateValue = this.mapRotationSpeedToValue(child.fan_speed_level as number);
                   this.updateValue(
                     service,

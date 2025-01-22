@@ -416,8 +416,14 @@ export default class HomeKitDeviceSwitchWithChildren extends HomeKitDevice {
             }
             if (child[characteristicKey as keyof ChildDevice] !== undefined) {
               const value = child[characteristicKey as keyof ChildDevice] as unknown as CharacteristicValue;
-              this.log.debug(`Setting value for characteristic ${name} to ${value}`);
-              this.updateValue(service, characteristic, child.alias, characteristic.value);
+              let controlValue: CharacteristicValue = value;
+              if (name === 'Active') {
+                controlValue = value ? this.platform.Characteristic.Active.ACTIVE : this.platform.Characteristic.Active.INACTIVE;
+              } else if (name === 'RotationSpeed') {
+                controlValue = this.mapRotationSpeedToValue(value as number);
+              }
+              this.log.debug(`Setting value for characteristic ${name} to ${controlValue}`);
+              this.updateValue(service, characteristic, child.alias, controlValue);
             }
           }
         });

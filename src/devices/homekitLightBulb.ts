@@ -34,7 +34,6 @@ export default class HomeKitDeviceLightBulb extends HomeKitDevice {
     this.hasColorTemp = !!this.kasaDevice.feature_info.color_temp;
     this.hasHSV = !!this.kasaDevice.feature_info.hsv;
     this.checkService();
-
     this.getSysInfo = deferAndCombine(async () => {
       if (this.deviceManager) {
         this.previousKasaDevice = JSON.parse(JSON.stringify(this.kasaDevice));
@@ -44,9 +43,7 @@ export default class HomeKitDeviceLightBulb extends HomeKitDevice {
         this.log.warn('Device manager is not available');
       }
     }, platform.config.advancedOptions.waitTimeUpdate);
-
     this.startPolling();
-
     platform.periodicDeviceDiscoveryEmitter.on('periodicDeviceDiscoveryComplete', () => {
       this.updateEmitter.emit('periodicDeviceDiscoveryComplete');
     });
@@ -71,40 +68,61 @@ export default class HomeKitDeviceLightBulb extends HomeKitDevice {
   }
 
   private checkService() {
-    const { Lightbulb } = this.platform.Service;
+    const serviceType = this.getServiceType();
     const service: Service =
-      this.homebridgeAccessory.getService(Lightbulb) ?? this.addService(Lightbulb, this.name);
+      this.homebridgeAccessory.getService(serviceType) ?? this.addService(serviceType, this.name);
     this.checkCharacteristics(service);
-    return service;
+  }
+
+  private getServiceType() {
+    const { Lightbulb } = this.platform.Service;
+    return Lightbulb;
   }
 
   private checkCharacteristics(service: Service) {
-    const characteristics = [
+    const characteristics = this.getCharacteristics();
+    characteristics.forEach(({ type, name }) => {
+      this.getOrAddCharacteristic(service, type, name);
+    });
+  }
+
+  private getCharacteristics() {
+    const characteristics: { type: WithUUID<new () => Characteristic>; name: string | undefined }[] = [];
+    characteristics.push(
       {
         type: this.platform.Characteristic.On,
         name: this.platform.getCharacteristicName(this.platform.Characteristic.On),
       },
-      this.hasBrightness && {
-        type: this.platform.Characteristic.Brightness,
-        name: this.platform.getCharacteristicName(this.platform.Characteristic.Brightness),
-      },
-      this.hasColorTemp && {
-        type: this.platform.Characteristic.ColorTemperature,
-        name: this.platform.getCharacteristicName(this.platform.Characteristic.ColorTemperature),
-      },
-      this.hasHSV && {
-        type: this.platform.Characteristic.Hue,
-        name: this.platform.getCharacteristicName(this.platform.Characteristic.Hue),
-      },
-      this.hasHSV && {
-        type: this.platform.Characteristic.Saturation,
-        name: this.platform.getCharacteristicName(this.platform.Characteristic.Saturation),
-      },
-    ].filter(Boolean) as { type: WithUUID<new () => Characteristic>; name: string | undefined }[];
-
-    characteristics.forEach(({ type, name }) => {
-      this.getOrAddCharacteristic(service, type, name);
-    });
+    );
+    if (this.hasBrightness) {
+      characteristics.push(
+        {
+          type: this.platform.Characteristic.Brightness,
+          name: this.platform.getCharacteristicName(this.platform.Characteristic.Brightness),
+        },
+      );
+    }
+    if (this.hasColorTemp) {
+      characteristics.push(
+        {
+          type: this.platform.Characteristic.ColorTemperature,
+          name: this.platform.getCharacteristicName(this.platform.Characteristic.ColorTemperature),
+        },
+      );
+    }
+    if (this.hasHSV) {
+      characteristics.push(
+        {
+          type: this.platform.Characteristic.Hue,
+          name: this.platform.getCharacteristicName(this.platform.Characteristic.Hue),
+        },
+        {
+          type: this.platform.Characteristic.Saturation,
+          name: this.platform.getCharacteristicName(this.platform.Characteristic.Saturation),
+        },
+      );
+    }
+    return characteristics;
   }
 
   private getOrAddCharacteristic(
@@ -116,7 +134,6 @@ export default class HomeKitDeviceLightBulb extends HomeKitDevice {
       service.addCharacteristic(characteristicType);
     characteristic.onGet(this.handleOnGet.bind(this, service, characteristicType, characteristicName));
     characteristic.onSet(this.handleOnSet.bind(this, service, characteristicType, characteristicName));
-    return characteristic;
   }
 
   private async handleOnGet(
@@ -128,7 +145,6 @@ export default class HomeKitDeviceLightBulb extends HomeKitDevice {
       this.log.warn(`Device is offline or platform is shutting down, cannot get value for characteristic ${characteristicName}`);
       return this.getDefaultValue(characteristicType);
     }
-
     try {
       let characteristicValue = service.getCharacteristic(characteristicType).value;
       if (!characteristicValue) {
@@ -143,21 +159,6 @@ export default class HomeKitDeviceLightBulb extends HomeKitDevice {
       this.stopPolling();
       return this.getDefaultValue(characteristicType);
     }
-  }
-
-  private getInitialValue(characteristicType: WithUUID<new () => Characteristic>): CharacteristicValue {
-    if (characteristicType === this.platform.Characteristic.On) {
-      return this.kasaDevice.sys_info.state ?? false;
-    } else if (characteristicType === this.platform.Characteristic.Brightness) {
-      return this.kasaDevice.sys_info.brightness ?? 0;
-    } else if (characteristicType === this.platform.Characteristic.ColorTemperature) {
-      return this.kasaDevice.sys_info.color_temp ?? 0;
-    } else if (characteristicType === this.platform.Characteristic.Hue) {
-      return this.kasaDevice.sys_info.hsv?.hue ?? 0;
-    } else if (characteristicType === this.platform.Characteristic.Saturation) {
-      return this.kasaDevice.sys_info.hsv?.saturation ?? 0;
-    }
-    return this.getDefaultValue(characteristicType);
   }
 
   private getDefaultValue(characteristicType: WithUUID<new () => Characteristic>): CharacteristicValue {
@@ -175,6 +176,21 @@ export default class HomeKitDeviceLightBulb extends HomeKitDevice {
     return false;
   }
 
+  private getInitialValue(characteristicType: WithUUID<new () => Characteristic>): CharacteristicValue {
+    if (characteristicType === this.platform.Characteristic.On) {
+      return this.kasaDevice.sys_info.state ?? false;
+    } else if (characteristicType === this.platform.Characteristic.Brightness) {
+      return this.kasaDevice.sys_info.brightness ?? 0;
+    } else if (characteristicType === this.platform.Characteristic.ColorTemperature) {
+      return this.kasaDevice.sys_info.color_temp ?? 0;
+    } else if (characteristicType === this.platform.Characteristic.Hue) {
+      return this.kasaDevice.sys_info.hsv?.hue ?? 0;
+    } else if (characteristicType === this.platform.Characteristic.Saturation) {
+      return this.kasaDevice.sys_info.hsv?.saturation ?? 0;
+    }
+    return this.getDefaultValue(characteristicType);
+  }
+
   private async handleOnSet(
     service: Service,
     characteristicType: WithUUID<new () => Characteristic>,
@@ -187,38 +203,24 @@ export default class HomeKitDeviceLightBulb extends HomeKitDevice {
         this.log.warn(`Device is offline or platform is shutting down, cannot set value for characteristic ${characteristicName}`);
         return;
       }
-
       if (this.isUpdating || this.platform.periodicDeviceDiscovering) {
         await Promise.race([
           new Promise<void>((resolve) => this.updateEmitter.once('updateComplete', resolve)),
           new Promise<void>((resolve) => this.updateEmitter.once('periodicDeviceDiscoveryComplete', resolve)),
         ]);
       }
-
       const task = async () => {
         if (this.deviceManager) {
           try {
             this.isUpdating = true;
             this.log.debug(`Setting value for characteristic ${characteristicName} to ${value}`);
-
-            const characteristicMap: { [key: string]: string } = {
-              Brightness: 'brightness',
-              On: 'state',
-              ColorTemperature: 'color_temp',
-              Hue: 'hue',
-              Saturation: 'saturation',
-            };
-
-            const characteristicKey = characteristicMap[characteristicName ?? ''];
+            const characteristicKey = this.getCharacteristicKey(characteristicName);
             if (!characteristicKey) {
               throw new Error(`Characteristic key not found for ${characteristicName}`);
             }
-
             await this.deviceManager.controlDevice(this.kasaDevice.sys_info.host, characteristicKey, value);
-            (this.kasaDevice.sys_info as unknown as Record<string, CharacteristicValue>)[characteristicKey] = value;
-
+            (this.kasaDevice.sys_info as Record<string, CharacteristicValue>)[characteristicKey] = value;
             this.updateValue(service, service.getCharacteristic(characteristicType), this.name, value);
-
             this.previousKasaDevice = JSON.parse(JSON.stringify(this.kasaDevice));
             this.log.debug(`Set value for characteristic ${characteristicName} to ${value} successfully`);
           } catch (error) {
@@ -235,6 +237,17 @@ export default class HomeKitDeviceLightBulb extends HomeKitDevice {
       };
       await task();
     });
+  }
+
+  private getCharacteristicKey(characteristicName: string | undefined): string {
+    const characteristicMap: { [key: string]: string } = {
+      On: 'state',
+      Brightness: 'brightness',
+      ColorTemperature: 'color_temp',
+      Hue: 'hue',
+      Saturation: 'saturation',
+    };
+    return characteristicMap[characteristicName ?? ''];
   }
 
   protected async updateState() {
@@ -256,45 +269,20 @@ export default class HomeKitDeviceLightBulb extends HomeKitDevice {
           }),
         ]);
         if (periodicDiscoveryComplete) {
-          await new Promise((resolve) => setTimeout(resolve, this.platform.config.discoveryOptions.pollingInterval));
+          if (this.pollingInterval) {
+            await new Promise((resolve) => setTimeout(resolve, this.platform.config.discoveryOptions.pollingInterval));
+          } else {
+            return;
+          }
         }
       }
       this.isUpdating = true;
       const task = async () => {
         try {
           await this.getSysInfo();
-          const service = this.homebridgeAccessory.getService(this.platform.Service.Lightbulb);
+          const service = this.getService();
           if (service && this.previousKasaDevice) {
-            const { state, brightness, color_temp, hsv } = this.kasaDevice.sys_info;
-            const prevState = this.previousKasaDevice.sys_info;
-
-            if (prevState.state !== state) {
-              this.updateValue(service, service.getCharacteristic(this.platform.Characteristic.On), this.name, state ?? false);
-              this.log.debug(`Updated state for device: ${this.name} to state: ${state}`);
-            }
-
-            if (this.hasBrightness && prevState.brightness !== brightness) {
-              this.updateValue(service, service.getCharacteristic(this.platform.Characteristic.Brightness), this.name, brightness ?? 0);
-              this.log.debug(`Updated brightness for device: ${this.name} to brightness: ${brightness}`);
-            }
-
-            if (this.hasColorTemp && prevState.color_temp !== color_temp) {
-              this.updateValue(
-                service, service.getCharacteristic(this.platform.Characteristic.ColorTemperature), this.name, color_temp ?? 0);
-              this.log.debug(`Updated color_temp for device: ${this.name} to color_temp: ${color_temp}`);
-            }
-
-            if (this.hasHSV) {
-              if (prevState.hsv?.hue !== hsv?.hue) {
-                this.updateValue(service, service.getCharacteristic(this.platform.Characteristic.Hue), this.name, hsv?.hue ?? 0);
-                this.log.debug(`Updated hue for device: ${this.name} to hue: ${hsv?.hue}`);
-              }
-              if (prevState.hsv?.saturation !== hsv?.saturation) {
-                this.updateValue(
-                  service, service.getCharacteristic(this.platform.Characteristic.Saturation), this.name, hsv?.saturation ?? 0);
-                this.log.debug(`Updated saturation for device: ${this.name} to saturation: ${hsv?.saturation}`);
-              }
-            }
+            this.updateDeviceState(service);
           } else {
             this.log.warn(`Service not found for device: ${this.name} or previous Kasa device is undefined`);
           }
@@ -311,67 +299,62 @@ export default class HomeKitDeviceLightBulb extends HomeKitDevice {
     });
   }
 
+  private getService() {
+    return this.homebridgeAccessory.getService(this.platform.Service.Lightbulb);
+  }
+
+  private updateDeviceState(service: Service) {
+    const { state, brightness, color_temp, hsv } = this.kasaDevice.sys_info;
+    const prevState = this.previousKasaDevice!.sys_info;
+    if (prevState.state !== state) {
+      this.updateValue(service, service.getCharacteristic(this.platform.Characteristic.On), this.name, state ?? false);
+      this.log.debug(`Updated state for device: ${this.name} to state: ${state}`);
+    }
+    if (this.hasBrightness && prevState.brightness !== brightness) {
+      this.updateValue(service, service.getCharacteristic(this.platform.Characteristic.Brightness), this.name, brightness ?? 0);
+      this.log.debug(`Updated brightness for device: ${this.name} to brightness: ${brightness}`);
+    }
+    if (this.hasColorTemp && prevState.color_temp !== color_temp) {
+      this.updateValue(
+        service, service.getCharacteristic(this.platform.Characteristic.ColorTemperature), this.name, color_temp ?? 0);
+      this.log.debug(`Updated color_temp for device: ${this.name} to color_temp: ${color_temp}`);
+    }
+    if (this.hasHSV) {
+      if (prevState.hsv?.hue !== hsv?.hue) {
+        this.updateValue(service, service.getCharacteristic(this.platform.Characteristic.Hue), this.name, hsv?.hue ?? 0);
+        this.log.debug(`Updated hue for device: ${this.name} to hue: ${hsv?.hue}`);
+      }
+      if (prevState.hsv?.saturation !== hsv?.saturation) {
+        this.updateValue(
+          service, service.getCharacteristic(this.platform.Characteristic.Saturation), this.name, hsv?.saturation ?? 0);
+        this.log.debug(`Updated saturation for device: ${this.name} to saturation: ${hsv?.saturation}`);
+      }
+    }
+  }
+
   public updateAfterPeriodicDiscovery() {
-    const service = this.homebridgeAccessory.getService(this.platform.Service.Lightbulb);
+    const serviceType = this.getServiceType();
+    const service: Service | undefined = this.homebridgeAccessory.getService(serviceType);
     if (service) {
-      const characteristics: { type: WithUUID<new () => Characteristic>; name: string | undefined }[] = [
-        {
-          type: this.platform.Characteristic.On,
-          name: this.platform.getCharacteristicName(this.platform.Characteristic.On),
-        },
-      ];
-      if (this.hasBrightness) {
-        characteristics.push(
-          {
-            type: this.platform.Characteristic.Brightness,
-            name: this.platform.getCharacteristicName(this.platform.Characteristic.Brightness),
-          },
-        );
-      }
-      if (this.hasColorTemp) {
-        characteristics.push(
-          {
-            type: this.platform.Characteristic.ColorTemperature,
-            name: this.platform.getCharacteristicName(this.platform.Characteristic.ColorTemperature),
-          },
-        );
-      }
-      if (this.hasHSV) {
-        characteristics.push(
-          {
-            type: this.platform.Characteristic.Hue,
-            name: this.platform.getCharacteristicName(this.platform.Characteristic.Hue),
-          },
-          {
-            type: this.platform.Characteristic.Saturation,
-            name: this.platform.getCharacteristicName(this.platform.Characteristic.Saturation),
-          },
-        );
-      }
-      characteristics.forEach(({ type, name }) => {
-        const characteristic: Characteristic = service.getCharacteristic(type);
-        if (characteristic) {
-          const characteristicMap: { [key: string]: string } = {
-            On: 'state',
-            Brightness: 'brightness',
-            ColorTemperature: 'color_temp',
-            Hue: 'hue',
-            Saturation: 'saturation',
-          };
-          const characteristicKey = characteristicMap[name ?? ''];
-          if (!characteristicKey) {
-            throw new Error(`Characteristic key not found for ${name}`);
-          }
-          if (this.kasaDevice.sys_info[characteristicKey as keyof SysInfo] !== undefined) {
-            const value = this.kasaDevice.sys_info[characteristicKey as keyof SysInfo] as unknown as CharacteristicValue;
-            this.log.debug(`Setting value for characteristic ${name} to ${value}`);
-            this.updateValue(service, characteristic, this.name, value);
-          }
-        }
-      });
+      this.updateCharacteristics(service);
     } else {
       this.log.debug(`Service not found for device: ${this.name}`);
     }
+  }
+
+  private updateCharacteristics(service: Service) {
+    const characteristics = this.getCharacteristics();
+    characteristics.forEach(({ type, name }) => {
+      const characteristic: Characteristic = service.getCharacteristic(type);
+      if (characteristic) {
+        const characteristicKey = this.getCharacteristicKey(name);
+        if (this.kasaDevice.sys_info[characteristicKey as keyof SysInfo] !== undefined) {
+          const value = this.kasaDevice.sys_info[characteristicKey as keyof SysInfo] as unknown as CharacteristicValue;
+          this.log.debug(`Setting value for characteristic ${name} to ${value}`);
+          this.updateValue(service, characteristic, this.name, value);
+        }
+      }
+    });
   }
 
   public startPolling() {
@@ -379,11 +362,9 @@ export default class HomeKitDeviceLightBulb extends HomeKitDevice {
       this.stopPolling();
       return;
     }
-
     if (this.pollingInterval) {
       clearInterval(this.pollingInterval);
     }
-
     this.log.debug('Starting polling for device:', this.name);
     this.pollingInterval = setInterval(async () => {
       if (this.kasaDevice.offline || this.platform.isShuttingDown) {

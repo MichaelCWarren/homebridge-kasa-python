@@ -40,7 +40,6 @@ export default abstract class HomeKitDevice {
     const uuid = this.platform.api.hap.uuid.generate(this.id);
     const homebridgeAccessory = this.platform.configuredAccessories.get(uuid);
     let platformAccessory: PlatformAccessory<KasaPythonAccessoryContext>;
-
     if (!homebridgeAccessory) {
       this.log.debug(`Creating new Platform Accessory [${this.id}] [${uuid}] category: ${this.categoryName}`);
       platformAccessory = new this.platform.api.platformAccessory(this.name, uuid, this.category);
@@ -54,12 +53,10 @@ export default abstract class HomeKitDevice {
       platformAccessory = homebridgeAccessory;
       this.updateAccessory(platformAccessory);
     }
-
     const accInfo = AccessoryInformation(this.platform.api.hap)(platformAccessory, this);
     if (!accInfo) {
       this.log.error('Could not retrieve default AccessoryInformation');
     }
-
     return platformAccessory;
   }
 
@@ -130,9 +127,5 @@ export default abstract class HomeKitDevice {
   ): void {
     this.log.info(`Updating ${this.platform.lsc(service, characteristic)} on ${deviceAlias} to ${value}`);
     characteristic.updateValue(value);
-  }
-
-  logRejection(reason: unknown): void {
-    this.log.error(`Rejection: ${JSON.stringify(reason)}`);
   }
 }

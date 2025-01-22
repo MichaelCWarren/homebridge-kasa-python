@@ -28,7 +28,6 @@ export default class HomeKitDevicePlug extends HomeKitDevice {
     );
     this.log.debug(`Initializing HomeKitDevicePlug for device: ${kasaDevice.sys_info.alias}`);
     this.checkService();
-
     this.getSysInfo = deferAndCombine(async () => {
       if (this.deviceManager) {
         this.previousKasaDevice = JSON.parse(JSON.stringify(this.kasaDevice));
@@ -38,9 +37,7 @@ export default class HomeKitDevicePlug extends HomeKitDevice {
         this.log.warn('Device manager is not available');
       }
     }, platform.config.advancedOptions.waitTimeUpdate);
-
     this.startPolling();
-
     platform.periodicDeviceDiscoveryEmitter.on('periodicDeviceDiscoveryComplete', () => {
       this.updateEmitter.emit('periodicDeviceDiscoveryComplete');
     });
@@ -65,15 +62,27 @@ export default class HomeKitDevicePlug extends HomeKitDevice {
   }
 
   private checkService() {
-    const { Outlet } = this.platform.Service;
+    const serviceType = this.getServiceType();
     const service: Service =
-      this.homebridgeAccessory.getService(Outlet) ?? this.addService(Outlet, this.name);
+      this.homebridgeAccessory.getService(serviceType) ?? this.addService(serviceType, this.name);
     this.checkCharacteristics(service);
-    return service;
+  }
+
+  private getServiceType() {
+    const { Outlet } = this.platform.Service;
+    return Outlet;
   }
 
   private checkCharacteristics(service: Service) {
-    const characteristics = [
+    const characteristics = this.getCharacteristics();
+    characteristics.forEach(({ type, name }) => {
+      this.getOrAddCharacteristic(service, type, name);
+    });
+  }
+
+  private getCharacteristics() {
+    const characteristics: { type: WithUUID<new () => Characteristic>; name: string | undefined }[] = [];
+    characteristics.push(
       {
         type: this.platform.Characteristic.On,
         name: this.platform.getCharacteristicName(this.platform.Characteristic.On),
@@ -82,11 +91,8 @@ export default class HomeKitDevicePlug extends HomeKitDevice {
         type: this.platform.Characteristic.OutletInUse,
         name: this.platform.getCharacteristicName(this.platform.Characteristic.OutletInUse),
       },
-    ].filter(Boolean) as { type: WithUUID<new () => Characteristic>; name: string | undefined }[];
-
-    characteristics.forEach(({ type, name }) => {
-      this.getOrAddCharacteristic(service, type, name);
-    });
+    );
+    return characteristics;
   }
 
   private getOrAddCharacteristic(
@@ -100,7 +106,6 @@ export default class HomeKitDevicePlug extends HomeKitDevice {
     if (characteristicType === this.platform.Characteristic.On) {
       characteristic.onSet(this.handleOnSet.bind(this, service, characteristicType, characteristicName));
     }
-    return characteristic;
   }
 
   private async handleOnGet(
@@ -112,7 +117,6 @@ export default class HomeKitDevicePlug extends HomeKitDevice {
       this.log.warn(`Device is offline or platform is shutting down, cannot get value for characteristic ${characteristicName}`);
       return false;
     }
-
     try {
       let characteristicValue = service.getCharacteristic(characteristicType).value;
       if (!characteristicValue) {
@@ -148,35 +152,25 @@ export default class HomeKitDevicePlug extends HomeKitDevice {
         this.log.warn(`Device is offline or platform is shutting down, cannot set value for characteristic ${characteristicName}`);
         return;
       }
-
       if (this.isUpdating || this.platform.periodicDeviceDiscovering) {
         await Promise.race([
           new Promise<void>((resolve) => this.updateEmitter.once('updateComplete', resolve)),
           new Promise<void>((resolve) => this.updateEmitter.once('periodicDeviceDiscoveryComplete', resolve)),
         ]);
       }
-
       const task = async () => {
         if (this.deviceManager) {
           try {
             this.isUpdating = true;
             this.log.debug(`Setting value for characteristic ${characteristicName} to ${value}`);
-
-            const characteristicMap: { [key: string]: string } = {
-              On: 'state',
-            };
-
-            const characteristicKey = characteristicMap[characteristicName ?? ''];
+            const characteristicKey = this.getCharacteristicKey(characteristicName);
             if (!characteristicKey) {
               throw new Error(`Characteristic key not found for ${characteristicName}`);
             }
-
             await this.deviceManager.controlDevice(this.kasaDevice.sys_info.host, characteristicKey, value);
-            (this.kasaDevice.sys_info as unknown as Record<string, CharacteristicValue>)[characteristicKey] = value;
-
+            (this.kasaDevice.sys_info as Record<string, CharacteristicValue>)[characteristicKey] = value;
             this.updateValue(service, service.getCharacteristic(characteristicType), this.name, value);
             this.updateValue(service, service.getCharacteristic(this.platform.Characteristic.OutletInUse), this.name, value);
-
             this.previousKasaDevice = JSON.parse(JSON.stringify(this.kasaDevice));
             this.log.debug(`Set value for characteristic ${characteristicName} to ${value} successfully`);
           } catch (error) {
@@ -193,6 +187,13 @@ export default class HomeKitDevicePlug extends HomeKitDevice {
       };
       await task();
     });
+  }
+
+  private getCharacteristicKey(characteristicName: string | undefined): string {
+    const characteristicMap: { [key: string]: string } = {
+      On: 'state',
+    };
+    return characteristicMap[characteristicName ?? ''];
   }
 
   protected async updateState() {
@@ -214,23 +215,20 @@ export default class HomeKitDevicePlug extends HomeKitDevice {
           }),
         ]);
         if (periodicDiscoveryComplete) {
-          await new Promise((resolve) => setTimeout(resolve, this.platform.config.discoveryOptions.pollingInterval));
+          if (this.pollingInterval) {
+            await new Promise((resolve) => setTimeout(resolve, this.platform.config.discoveryOptions.pollingInterval));
+          } else {
+            return;
+          }
         }
       }
       this.isUpdating = true;
       const task = async () => {
         try {
           await this.getSysInfo();
-          const service = this.homebridgeAccessory.getService(this.platform.Service.Outlet);
+          const service = this.getService();
           if (service && this.previousKasaDevice) {
-            const { state } = this.kasaDevice.sys_info;
-            const prevState = this.previousKasaDevice.sys_info;
-
-            if (prevState.state !== state) {
-              this.updateValue(service, service.getCharacteristic(this.platform.Characteristic.On), this.name, state ?? false);
-              this.updateValue(service, service.getCharacteristic(this.platform.Characteristic.OutletInUse), this.name, state ?? false);
-              this.log.debug(`Updated state for device: ${this.name} to ${state}`);
-            }
+            this.updateDeviceState(service);
           } else {
             this.log.warn(`Service not found for device: ${this.name} or previous Kasa device is undefined`);
           }
@@ -247,25 +245,42 @@ export default class HomeKitDevicePlug extends HomeKitDevice {
     });
   }
 
+  private getService() {
+    return this.homebridgeAccessory.getService(this.platform.Service.Outlet);;
+  }
+
+  private updateDeviceState(service: Service) {
+    const previousKasaDevice = this.previousKasaDevice;
+    if (previousKasaDevice) {
+      if (previousKasaDevice.sys_info.state !== this.kasaDevice.sys_info.state) {
+        this.updateValue(
+          service, service.getCharacteristic(this.platform.Characteristic.On), this.name, this.kasaDevice.sys_info.state ?? false,
+        );
+        this.updateValue(
+          service, service.getCharacteristic(this.platform.Characteristic.OutletInUse), this.name, this.kasaDevice.sys_info.state ?? false,
+        );
+        this.log.debug(`Updated state for child device: ${this.name} to ${this.kasaDevice.sys_info.state}`);
+      }
+    }
+  }
+
   public updateAfterPeriodicDiscovery() {
-    const service = this.homebridgeAccessory.getService(this.platform.Service.Outlet);
+    const serviceType = this.getServiceType();
+    const service: Service | undefined = this.homebridgeAccessory.getService(serviceType);
     if (service) {
-      const characteristics: { type: WithUUID<new () => Characteristic>; name: string | undefined }[] = [
-        {
-          type: this.platform.Characteristic.On,
-          name: this.platform.getCharacteristicName(this.platform.Characteristic.On),
-        },
-      ];
-      characteristics.forEach(({ type, name }) => {
+      this.updateCharacteristics(service);
+    } else {
+      this.log.debug(`Service not found for device: ${this.name}`);
+    }
+  }
+
+  private updateCharacteristics(service: Service) {
+    const characteristics = this.getCharacteristics();
+    characteristics.forEach(({ type, name }) => {
+      if (type === this.platform.Characteristic.On) {
         const characteristic: Characteristic = service.getCharacteristic(type);
         if (characteristic) {
-          const characteristicMap: { [key: string]: string } = {
-            On: 'state',
-          };
-          const characteristicKey = characteristicMap[name ?? ''];
-          if (!characteristicKey) {
-            throw new Error(`Characteristic key not found for ${name}`);
-          }
+          const characteristicKey = this.getCharacteristicKey(name);
           if (this.kasaDevice.sys_info[characteristicKey as keyof SysInfo] !== undefined) {
             const value = this.kasaDevice.sys_info[characteristicKey as keyof SysInfo] as unknown as CharacteristicValue;
             this.log.debug(`Setting value for characteristic ${name} to ${value}`);
@@ -273,10 +288,8 @@ export default class HomeKitDevicePlug extends HomeKitDevice {
             this.updateValue(service, service.getCharacteristic(this.platform.Characteristic.OutletInUse), this.name, value);
           }
         }
-      });
-    } else {
-      this.log.debug(`Service not found for device: ${this.name}`);
-    }
+      }
+    });
   }
 
   public startPolling() {
@@ -284,11 +297,9 @@ export default class HomeKitDevicePlug extends HomeKitDevice {
       this.stopPolling();
       return;
     }
-
     if (this.pollingInterval) {
       clearInterval(this.pollingInterval);
     }
-
     this.log.debug('Starting polling for device:', this.name);
     this.pollingInterval = setInterval(async () => {
       if (this.kasaDevice.offline || this.platform.isShuttingDown) {

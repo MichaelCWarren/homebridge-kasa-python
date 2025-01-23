@@ -68,6 +68,10 @@ export default class HomeKitDevicePowerStrip extends HomeKitDevice {
     const service: Service =
       this.homebridgeAccessory.getServiceById(serviceType, `child-${index + 1}`) ??
       this.addService(serviceType, child.alias, `child-${index + 1}`);
+    const oldService: Service | undefined = this.homebridgeAccessory.getServiceById(serviceType, `outlet-${index + 1}`);
+    if (oldService) {
+      this.homebridgeAccessory.removeService(oldService);
+    }
     this.checkCharacteristics(service, child);
   }
 

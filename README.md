@@ -13,7 +13,7 @@
 <p align="center">
   <a href="https://github.com/ZeliardM/homebridge-kasa-python/blob/latest/LICENSE"><img src="https://badgen.net/npm/license/homebridge-kasa-python" alt="mit license"></a>
   <a href="https://www.npmjs.com/package/homebridge-kasa-python/v/latest"><img src="https://badgen.net/npm/v/homebridge-kasa-python/latest?label=npm@latest" alt="latest npm version"></a>
-  <a href="https://pypi.org/project/python-kasa/"><img src="https://badgen.net/badge/Python@latest/3.9,%203.10,%203.11,%203.12,%203.13" alt="latest PyPI pyversions"></a>
+  <a href="https://pypi.org/project/python-kasa/"><img src="https://badgen.net/badge/Python@latest/3.11,%203.12,%203.13" alt="latest PyPI pyversions"></a>
   <a href="https://www.npmjs.com/package/homebridge-kasa-python/v/beta"><img src="https://badgen.net/npm/v/homebridge-kasa-python/beta?label=npm@beta&color=cyan" alt="beta npm version"></a>
   <a href="https://pypi.org/project/python-kasa/"><img src="https://badgen.net/badge/Python@beta/3.11,%203.12,%203.13?color=cyan" alt="beta PyPI pyversions"></a>
   <a href="https://www.npmjs.com/package/homebridge-kasa-python/v/latest"><img src="https://badgen.net/npm/dt/homebridge-kasa-python" alt="npm downloads total"></a>
@@ -25,7 +25,7 @@
 <div align="center">
 
 > ## IMPORTANT!!!
->With Beta v2.7.0, Support for anything less than Python v3.11 will be dropped.
+>With v2.7.0, Support for anything less than Python v3.11 will be dropped.
 
 </div>
 
@@ -41,8 +41,10 @@ Automatic Discovery may be possible only for some devices. If your device is not
 ### Features
 
 -   Automatically discover TP-Link Kasa/Tapo Devices locally only on your network.
--   Change Device States for Plugs, Change Device States for Power Strips, Change Device State and Supports Dimming for Switches, Change Device State and Supports Hue, Saturation, and Value (HSV), Color, Color Temperature Adjustments, and Dimming for Bulbs and Light Strips that support those options.</p>*NOTE - Not All Functions Are Currently Supported, All Devices and Functions Could Be Supported By The Plug-In In The Furture.*</p>
--   Supported Devices from the API are listed below, Devices with an asterisks ('*') next to the specific firmware will require the Username and Password for your TP-Link Kasa/Tapo Cloud Account to connect and function correctly.</p>*NOTE - Not All Devices Listed Below Are Supported By This Plug-In. These Devices Are Supported By The Python-Kasa API Library And Could Be Supported By The Plug-In In The Future.*</p>
+-   Currently only Plugs, Power Strips, Wall Switches, Bulbs, and Light Strips are supported by the plug-in and added to Homebridge.
+-   This plug-in will by default filter out Native HomeKit/Matter Devices, this can be disabled to implement all supported devices on the network if desired.
+-   Change Device States for Plugs, Change Device States for Power Strips, Change Device State and Supports Dimming for Wall Switches, Change Device State and Supports Hue, Saturation, and Value (HSV) and Color Temperature Adjustments, and Dimming for Bulbs and Light Strips that support those options. The KS240 Dual Fan and Light Dimmer Wall Switch is also supported if Native HomeKit/Matter Device Filtering is Disabled.
+-   Supported Devices from the API are listed below, Devices with an asterisks ('*') next to the specific firmware will require the Username and Password for your TP-Link Kasa/Tapo Cloud Account to connect and function correctly. If your device is not listed below, it does not mean it won't work, but there may be issues. </p>*NOTE - Not All Devices Listed Below Are Supported By This Plug-In. These Devices Are Supported By The Python-Kasa API Library And Could Be Supported By The Plug-In In The Future.*</p>
 
 ## Kasa devices
 
@@ -126,6 +128,7 @@ Some newer Kasa devices require authentication. These are marked with [*] in the
 - **HS210**
   - Hardware: 1.0 (US) / Firmware: 1.5.8
   - Hardware: 2.0 (US) / Firmware: 1.1.5
+  - Hardware: 3.0 (US) / Firmware: 1.0.10
 - **HS220**
   - Hardware: 1.0 (US) / Firmware: 1.5.7
   - Hardware: 2.0 (US) / Firmware: 1.0.3
@@ -152,6 +155,7 @@ Some newer Kasa devices require authentication. These are marked with [*] in the
   - Hardware: 1.0 (US) / Firmware: 1.1.0[*]
 - **KS230**
   - Hardware: 1.0 (US) / Firmware: 1.0.14
+  - Hardware: 2.0 (US) / Firmware: 1.0.11
 - **KS240**
   - Hardware: 1.0 (US) / Firmware: 1.0.4[*]
   - Hardware: 1.0 (US) / Firmware: 1.0.5[*]
@@ -256,6 +260,10 @@ All Tapo devices require authentication.<br>Hub-Connected Devices may work acros
 
 ### Wall Switches
 
+- **S210**
+  - Hardware: 1.0 (EU) / Firmware: 1.9.0
+- **S220**
+  - Hardware: 1.0 (EU) / Firmware: 1.9.0
 - **S500D**
   - Hardware: 1.0 (US) / Firmware: 1.0.5
 - **S505**
@@ -299,18 +307,39 @@ All Tapo devices require authentication.<br>Hub-Connected Devices may work acros
 - **C100**
   - Hardware: 4.0 / Firmware: 1.3.14
 - **C210**
+  - Hardware: 2.0 / Firmware: 1.3.11
   - Hardware: 2.0 (EU) / Firmware: 1.4.2
   - Hardware: 2.0 (EU) / Firmware: 1.4.3
+- **C220**
+  - Hardware: 1.0 (EU) / Firmware: 1.2.2
 - **C225**
   - Hardware: 2.0 (US) / Firmware: 1.0.11
 - **C325WB**
   - Hardware: 1.0 (EU) / Firmware: 1.1.17
 - **C520WS**
   - Hardware: 1.0 (US) / Firmware: 1.2.8
+- **C720**
+  - Hardware: 1.0 (US) / Firmware: 1.2.3
 - **TC65**
   - Hardware: 1.0 / Firmware: 1.3.9
 - **TC70**
   - Hardware: 3.0 / Firmware: 1.3.11
+
+### Doorbells and chimes
+
+- **D100C**
+  - Hardware: 1.0 (US) / Firmware: 1.1.3
+- **D130**
+  - Hardware: 1.0 (US) / Firmware: 1.1.9
+- **D230**
+  - Hardware: 1.20 (EU) / Firmware: 1.1.19
+
+### Vacuums
+
+- **RV20 Max Plus**
+  - Hardware: 1.0 (EU) / Firmware: 1.0.7
+- **RV30 Max**
+  - Hardware: 1.0 (US) / Firmware: 1.2.0
 
 ### Hubs
 
@@ -320,6 +349,7 @@ All Tapo devices require authentication.<br>Hub-Connected Devices may work acros
   - Hardware: 1.0 (EU) / Firmware: 1.5.5
 - **H200**
   - Hardware: 1.0 (EU) / Firmware: 1.3.2
+  - Hardware: 1.0 (EU) / Firmware: 1.3.6
   - Hardware: 1.0 (US) / Firmware: 1.3.6
 
 ### Hub-Connected Devices

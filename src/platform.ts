@@ -11,24 +11,23 @@ import type {
 import { Logger } from 'homebridge/dist/logger.js';
 
 import axios from 'axios';
-import net from 'node:net';
-import path from 'node:path';
 import { ChildProcessWithoutNullStreams } from 'node:child_process';
 import { EventEmitter } from 'node:events';
 import { promises as fs } from 'node:fs';
+import net from 'node:net';
+import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
+import type { KasaPythonConfig } from './config.js';
+import { parseConfig } from './config.js';
 import create from './devices/create.js';
 import DeviceManager from './devices/deviceManager.js';
 import HomeKitDevice from './devices/index.js';
-import PythonChecker from './python/pythonChecker.js';
-import { parseConfig } from './config.js';
-import { TaskQueue } from './taskQueue.js';
-import { deferAndCombine, runCommand } from './utils.js';
-import { PLATFORM_NAME, PLUGIN_NAME } from './settings.js';
-import { isObjectLike, lookup, lookupCharacteristicNameByUUID, prefixLogger } from './utils.js';
-import type { KasaPythonConfig } from './config.js';
 import type { KasaDevice } from './devices/kasaDevices.js';
+import PythonChecker from './python/pythonChecker.js';
+import { PLATFORM_NAME, PLUGIN_NAME } from './settings.js';
+import { TaskQueue } from './taskQueue.js';
+import { deferAndCombine, isObjectLike, lookup, lookupCharacteristicNameByUUID, prefixLogger, runCommand } from './utils.js';
 
 export type KasaPythonAccessoryContext = {
   deviceId?: string;
@@ -505,6 +504,8 @@ export default class KasaPythonPlatform implements DynamicPlatformPlugin {
         this.config.advancedOptions.advancedPythonLogging ? false: true,
         this.config.advancedOptions.advancedPythonLogging ? false: true,
         true,
+        [],
+        false,
       );
 
       this.kasaProcess = process;

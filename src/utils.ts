@@ -1,9 +1,9 @@
-import { LogLevel } from 'homebridge';
 import type {
   Characteristic,
   Logger,
   Logging,
 } from 'homebridge';
+import { LogLevel } from 'homebridge';
 
 import { ChildProcessWithoutNullStreams, spawn, SpawnOptionsWithoutStdio } from 'node:child_process';
 import { writeFile } from 'node:fs/promises';
@@ -100,6 +100,7 @@ export async function runCommand(
   hideStderr: boolean = false,
   returnProcess: boolean = false,
   suppressErrors: string[] = [],
+  collectOutput: boolean = true,
 ): Promise<[string, string, number | null, (ChildProcessWithoutNullStreams | null)?]> {
   let stdout: string = '';
   let stderr: string = '';
@@ -121,14 +122,18 @@ export async function runCommand(
   logger.debug(`Command PID: ${p.pid}`);
 
   p.stdout.setEncoding('utf8').on('data', data => {
-    stdout += data;
+    if (collectOutput) {
+      stdout += data;
+    }
     if (!hideStdout) {
       logger.debug(`STDOUT: ${data.trim()}`);
     }
   });
 
   p.stderr.setEncoding('utf8').on('data', data => {
-    stderr += data;
+    if (collectOutput) {
+      stderr += data;
+    }
     if (!hideStderr) {
       logger.error(`STDERR: ${data.trim()}`);
     }
